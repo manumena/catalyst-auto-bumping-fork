@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
-      - uses: decentraland/gh-action-release@0.1.0
+      - uses: manumena/gh-action-fork@1.1.5
         id: result
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
