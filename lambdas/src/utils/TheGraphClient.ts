@@ -380,7 +380,7 @@ export class TheGraphClient {
 
 const QUERY_THIRD_PARTIES = `
 {
-  thirdParties {
+  thirdParties(where: {isApproved: true}) {
     id
 		metadata {
       thirdParty {
@@ -394,7 +394,7 @@ const QUERY_THIRD_PARTIES = `
 
 const QUERY_THIRD_PARTY_RESOLVER = `
 query ThirdPartyResolver($id: String!) {
-  thirdParties(where: {id: $id}) {
+  thirdParties(where: {id: $id, isApproved: true}) {
     id
     resolver
   }

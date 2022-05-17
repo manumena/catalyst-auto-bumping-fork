@@ -1,4 +1,5 @@
 import { toQueryParams } from '@dcl/catalyst-node-commons'
+import { DecentralandAssetIdentifier, parseUrn } from '@dcl/urn-resolver'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import {
   AuditInfo,
@@ -20,7 +21,7 @@ import { CURRENT_CATALYST_VERSION, CURRENT_COMMIT_HASH, CURRENT_CONTENT_VERSION 
 import { getActiveDeploymentsByContentHash } from '../logic/database-queries/deployments-queries'
 import { DeploymentWithAuthChain } from '../logic/database-queries/snapshots-queries'
 import { statusResponseFromComponents } from '../logic/status-checks'
-import { ContentItem, RawContent } from '../ports/contentStorage/contentStorage'
+import { ContentItem } from '../ports/contentStorage/contentStorage'
 import { getDeployments } from '../service/deployments/deployments'
 import { DeploymentOptions } from '../service/deployments/types'
 import { getPointerChanges } from '../service/pointers/pointers'
@@ -140,19 +141,22 @@ export class Controller {
 
   async filterByUrn(req: express.Request, res: express.Response): Promise<void> {
     // Method: GET
-    // Path: /entities/currently-pointed/{urnPrefix}
-    const urnPrefix: string = req.params.urnPrefix
+    // Path: /entities/active/collections/{collectionUrn}
+    const collectionUrn: string = req.params.collectionUrn
 
-    const regex = /^[a-zA-Z0-9_.:,-]+$/g
-    if (!regex.test(urnPrefix)) {
-      return res
+    const parsedUrn = await isUrnPrefixValid(collectionUrn)
+    if (!parsedUrn) {
+      res
         .status(400)
-        .send({ errors: `Invalid Urn prefix param: '${urnPrefix}'` })
+        .send({
+          errors: `Invalid collection urn param, it should be a valid urn prefix of a 3rd party collection, instead: '${collectionUrn}'`
+        })
         .end()
+      return
     }
 
     const entities: { pointer: string; entityId: EntityId }[] = await this.components.activeEntities.withPrefix(
-      urnPrefix
+      parsedUrn
     )
 
     res.send(entities)
@@ -250,9 +254,7 @@ export class Controller {
     const contentItem: ContentItem | undefined = await this.components.deployer.getContent(hashId)
 
     if (contentItem) {
-      const rawStream = await contentItem.asRawStream()
-      await setContentFileHeaders(rawStream, hashId, res)
-      destroy(rawStream.stream)
+      await setContentFileHeaders(contentItem, hashId, res)
       res.send()
     } else {
       res.status(404).send()
@@ -267,14 +269,14 @@ export class Controller {
     const contentItem: ContentItem | undefined = await this.components.deployer.getContent(hashId)
 
     if (contentItem) {
-      const rawStream = await contentItem.asRawStream()
-      await setContentFileHeaders(rawStream, hashId, res)
+      await setContentFileHeaders(contentItem, hashId, res)
 
-      const { stream } = rawStream
-      stream.pipe(res)
+      const rawStream = await contentItem.asRawStream()
+
+      rawStream.pipe(res)
 
       // Note: for context about why this is necessary, check https://github.com/nodejs/node/issues/1180
-      onFinished(res, () => destroy(stream))
+      onFinished(res, () => destroy(rawStream))
     } else {
       res.status(404).send()
     }
@@ -684,7 +686,7 @@ export class Controller {
   }
 }
 
-async function setContentFileHeaders(content: RawContent, hashId: string, res: express.Response) {
+async function setContentFileHeaders(content: ContentItem, hashId: string, res: express.Response) {
   res.contentType('application/octet-stream')
   res.setHeader('ETag', JSON.stringify(hashId)) // by spec, the ETag must be a double-quoted string
   res.setHeader('Access-Control-Expose-Headers', 'ETag')
@@ -733,3 +735,24 @@ const DEFAULT_FIELDS_ON_DEPLOYMENTS: DeploymentField[] = [
   DeploymentField.CONTENT,
   DeploymentField.METADATA
 ]
+
+async function isUrnPrefixValid(collectionUrn: string): Promise<string | false> {
+  const regex = /^[a-zA-Z0-9_.:,-]+$/g
+  if (!regex.test(collectionUrn)) return false
+
+  const parsedUrn: DecentralandAssetIdentifier | null = await parseUrn(collectionUrn)
+
+  if (parseUrn === null) return false
+
+  // We want to reduce the matches of the query,
+  // so we enforce to write the full name of the third party or collection for the search
+  if (
+    parsedUrn?.type === 'blockchain-collection-third-party-name' ||
+    parsedUrn?.type === 'blockchain-collection-third-party-collection'
+  ) {
+    return `${collectionUrn}:`
+  }
+  if (parsedUrn?.type === 'blockchain-collection-third-party') return collectionUrn
+
+  return false
+}
