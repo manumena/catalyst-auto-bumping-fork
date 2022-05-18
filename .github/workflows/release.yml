@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
-      - uses: manumena/gh-action-fork@1.1.9
+      - uses: manumena/gh-action-fork@1.1.10
         id: result
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
