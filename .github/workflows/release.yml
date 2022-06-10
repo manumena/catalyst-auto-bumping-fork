@@ -8,7 +8,7 @@ on:
         required: false
         default: false
   schedule:
-    - cron: '*/2 * * * 5'  # Every Saturday at 1PM UTC
+    - cron: '*/1 * * * *' # Every Saturday at 1PM UTC
 jobs:
   release:
     runs-on: ubuntu-latest
