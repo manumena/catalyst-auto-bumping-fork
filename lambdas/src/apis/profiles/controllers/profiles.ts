@@ -97,6 +97,7 @@ export async function getProfilesById(
   req: Request,
   res: Response
 ): Promise<Response<any, Record<string, any>> | undefined> {
+
   // Method: GET
   // Path: /lambdas/profiles?id={ids}
   const profileIds: EthAddress[] | undefined = asArray(req.query.id as string)
